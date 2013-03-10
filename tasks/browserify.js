@@ -18,8 +18,10 @@ module.exports = function (grunt) {
     var helpers = require('grunt-lib-legacyhelpers').init(grunt);
 
     var browserify = require('browserify'),
-        b = browserify(this.data.options || {}),
-        files, src;
+        fs = require('fs'),
+        path = require('path'),
+        b = browserify(),
+        options = this.options();
 
     if (this.data.beforeHook) {
       this.data.beforeHook.call(this, b);
@@ -30,9 +32,30 @@ module.exports = function (grunt) {
       b.ignore(filepath);
     });
 
+    (this.data.externals || []).forEach(function (req) {
+      grunt.verbose.writeln('Adding "' + req + '" to the external module list');
+      b.external(req);
+    });
+
     (this.data.requires || []).forEach(function (req) {
+      var splits = req.split(':');
+      var req = splits[0];
+      var id = splits.length > 1 ? splits[1] : req;
       grunt.verbose.writeln('Adding "' + req + '" to the required module list');
-      b.require(req);
+      var opts = { expose: id };
+      if(options.basedir) {
+        opts.basedir = path.resolve(options.basedir);
+      }
+      b.require(path.resolve(req), opts);
+    });
+
+    grunt.file.expand({filter: 'isFile'}, this.data.src || []).forEach(function (filepath) {
+      grunt.verbose.writeln('Adding "' + filepath + '" to the entry file list');
+      var opts = { entry: true };
+      if(options.basedir) {
+        opts.basedir = path.resolve(options.basedir);
+      }
+      b.require(path.resolve(filepath), opts);
     });
 
     (this.data.aliases || []).forEach(function (alias) {
@@ -41,33 +64,24 @@ module.exports = function (grunt) {
       b.alias.apply(b, alias.split(":"));
     });
 
-    grunt.file.expandFiles(this.file.src || []).forEach(function (filepath) {
-      grunt.verbose.writeln('Adding "' + filepath + '" to the entry file list');
-      b.addEntry(filepath);
-    });
-
-    grunt.file.expandFiles(this.data.entries || []).forEach(function (filepath) {
-      grunt.verbose.writeln('Adding "' + filepath + '" to the entry file list');
-      b.addEntry(filepath);
-    });
-
-    files = grunt.file.expandFiles(this.data.prepend || []);
-    src = helpers.concat(files, {
-      separator: ''
-    });
-    b.prepend(src);
-
-    files = grunt.file.expandFiles(this.data.append || []);
-    src = helpers.concat(files, {
-      separator: ''
-    });
-    b.append(src);
-
     if (this.data.hook) {
       this.data.hook.call(this, b);
     }
 
-    grunt.file.write(this.file.dest || this.target, b.bundle());
+    var done = this.async();
+    var dest = path.resolve(this.data.dest || this.target);
+    var bundle = b.bundle(options || {});
+
+    bundle.pipe(fs.createWriteStream(dest));
+
+    bundle.on('error', function(err) {
+      done(err);
+    });
+
+    bundle.on('close', function(err) {
+      done();
+    });
+
   });
 
 };

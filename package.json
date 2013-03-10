@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "grunt": "~0.4.0",
-    "browserify": "1.16.x",
+    "browserify": "2.4.x",
     "grunt-contrib-jshint": "0.1.x",
     "grunt-contrib-nodeunit": "0.1.x",
     "grunt-lib-legacyhelpers": "0.1.x"
